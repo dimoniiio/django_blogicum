@@ -1,9 +1,7 @@
-from django import forms
-from django.core.exceptions import ValidationError
-# Импорт функции для отправки почты.
-from django.core.mail import send_mail
+"""Формы приложения blog."""
 
-# Импортируем класс модели Birthday.
+from django import forms
+
 from .models import Post, User, Comment
 
 
