@@ -3,6 +3,7 @@
 from django.db import models
 from django.contrib.auth import get_user_model
 from django.urls import reverse
+from django.utils import timezone
 
 
 MAX_LENGTH_TITLE: int = 256
@@ -80,6 +81,7 @@ class Post(PublishedModel):
                              max_length=MAX_LENGTH_TITLE)
     text = models.TextField(verbose_name='Текст')
     pub_date = models.DateTimeField(
+        default=timezone.now,
         verbose_name='Дата и время публикации',
         help_text=(
             'Если установить дату и время в будущем — '
@@ -129,15 +131,31 @@ class Post(PublishedModel):
 class Comment(models.Model):
     """Класс описывающий комментарий."""
 
-    text = models.TextField('Текст комментария')
+    text = models.TextField(verbose_name='Текст комментария')
     post = models.ForeignKey(
         Post,
         on_delete=models.CASCADE,
-        related_name='comment',
-        verbose_name='Комментарий'
+        related_name='comments',
+        verbose_name='Пост'
     )
-    created_at = models.DateTimeField(auto_now_add=True)
-    author = models.ForeignKey(User, on_delete=models.CASCADE)
+    created_at = models.DateTimeField(
+        auto_now_add=True,
+        verbose_name='Дата и время создания'
+    )
+    author = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        verbose_name='Автор комментария',
+        related_name='authors'
+    )
+
+    def __str__(self):
+        """Метод используется для получения
+        «читаемого» представления объекта.
+        """
+        return self.text[:PRE_TEXT_LEN]
 
     class Meta:
+        verbose_name = 'комментарий'
+        verbose_name_plural = 'Комментарии'
         ordering = ('created_at',)

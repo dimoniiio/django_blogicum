@@ -1,7 +1,7 @@
 from django.contrib import admin
 
 # Из модуля models импортируем модель Category...
-from .models import Category, Location, Post
+from .models import Category, Comment, Location, Post
 
 
 admin.site.empty_value_display = 'Не задано'
@@ -67,6 +67,19 @@ class LocationAdmin(admin.ModelAdmin):
     list_display_links = ('name',)
 
 
+class CommentAdmin(admin.ModelAdmin):
+    list_display = (
+        'text',
+        'created_at',
+        'author',
+        'post',
+    )
+    search_fields = ('author',)
+    list_filter = ('author', 'post')
+    list_display_links = ('author',)
+
+
 admin.site.register(Post, PostAdmin)
 admin.site.register(Category, CategoryAdmin)
 admin.site.register(Location, LocationAdmin)
+admin.site.register(Comment, CommentAdmin)

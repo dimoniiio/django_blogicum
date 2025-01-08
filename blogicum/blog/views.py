@@ -12,8 +12,9 @@ from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse, reverse_lazy
 from django.utils import timezone
 
+from django.conf import settings
 from django.contrib.auth.decorators import login_required
-from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
+from django.contrib.auth.mixins import LoginRequiredMixin
 from django.views.generic import (
     CreateView,
     DeleteView,
@@ -23,26 +24,8 @@ from django.views.generic import (
 )
 
 from blog.models import Category, Comment, Post, User
+from .my_mixin import OnlyAuthorMixin, OnlyUserMixin
 from .forms import CommentForm, PostForm, UserForm
-
-
-LIMIT_POSTS: int = 10
-
-
-class OnlyAuthorMixin(UserPassesTestMixin):
-    """Класс для проверки авторства."""
-
-    def test_func(self):
-        object = self.get_object()
-        return object.author == self.request.user
-
-
-class OnlyUserMixin(UserPassesTestMixin):
-    """Класс для проверки пользователя."""
-
-    def test_func(self):
-        object = self.get_object()
-        return object == self.request.user
 
 
 class PostCreateView(LoginRequiredMixin, CreateView):
@@ -76,8 +59,12 @@ class PostDetailView(DetailView):
     def get_object(self, queryset=None):
         """Функция проверяет право доступа к неопубликованному посту."""
         obj = super().get_object(queryset=queryset)
-        if not obj.is_published and obj.author != self.request.user:
-            raise Http404("Post is not published or you are not the author")
+        if not obj.is_published and obj.author != self.request.user: 
+            obj = get_object_or_404(
+                Post,
+                pk=self.kwargs.get('post_id'),
+                author=self.request.user
+            )
         return obj
 
     def get_context_data(self, **kwargs):
@@ -85,7 +72,7 @@ class PostDetailView(DetailView):
         context = super().get_context_data(**kwargs)
         context['form'] = CommentForm()
         context['comments'] = (
-            self.object.comment.select_related('author')
+            self.object.comments.select_related('author')
         )
         return context
 
@@ -94,7 +81,7 @@ class PostsListView(ListView):
     """Список всех постов."""
 
     model = Post
-    paginate_by = LIMIT_POSTS
+    paginate_by = settings.LIMIT_POSTS
 
     def get_queryset(self):
         """Функция вывода постов."""
@@ -153,7 +140,7 @@ class ProfileDetailView(DetailView):
         post_list = Post.objects.filter(
             author=user
         )  # Получаем список всех постов пользователя
-        paginator = Paginator(post_list, LIMIT_POSTS)
+        paginator = Paginator(post_list, settings.LIMIT_POSTS)
         page_number = self.request.GET.get('page')
         page_obj = paginator.get_page(page_number)
         context['page_obj'] = page_obj
@@ -246,7 +233,7 @@ class CategoryListView(ListView):
     model = Post
     template_name = 'blog/category_list.html'  # Путь к шаблону
     context_object_name = 'posts'
-    paginate_by = LIMIT_POSTS
+    paginate_by = settings.LIMIT_POSTS
 
     def get_queryset(self):
         """Метод возвращает список элементов для представления."""
