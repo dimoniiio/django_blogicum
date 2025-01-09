@@ -154,3 +154,6 @@ EMAIL_BACKEND = 'django.core.mail.backends.filebased.EmailBackend'
 EMAIL_FILE_PATH = BASE_DIR / 'sent_emails'
 
 LIMIT_POSTS: int = 10
+# blog/models
+MAX_LENGTH_TITLE: int = 256
+PRE_TEXT_LEN: int = 15

@@ -4,16 +4,14 @@ venws.post_detail -- страница с одним постом.
 venws.category_posts -- страница категории.
 """
 
-from django.core.exceptions import PermissionDenied
 from django.core.mail import send_mail
-from django.core.paginator import Paginator
-from django.http import Http404, HttpResponse
 from django.shortcuts import get_object_or_404, redirect
-from django.urls import reverse, reverse_lazy
+from django.urls import reverse_lazy
 from django.utils import timezone
 
 from django.conf import settings
 from django.contrib.auth.decorators import login_required
+from django.contrib.auth.forms import UserCreationForm
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.views.generic import (
     CreateView,
@@ -23,9 +21,22 @@ from django.views.generic import (
     UpdateView,
 )
 
-from blog.models import Category, Comment, Post, User
-from .my_mixin import OnlyAuthorMixin, OnlyUserMixin
+from blog.models import Category, Post, User
 from .forms import CommentForm, PostForm, UserForm
+from .utils import (
+    CommentSuccessUrl,
+    OnlyAuthorMixin,
+    OnlyUserMixin,
+    get_optimized_posts,
+)
+
+
+class UserCreateView(CreateView):
+    """Класс регистрации нового пользователя."""
+
+    template_name = 'registration/registration_form.html'
+    form_class = UserCreationForm
+    success_url = reverse_lazy('blog:index')
 
 
 class PostCreateView(LoginRequiredMixin, CreateView):
@@ -59,7 +70,7 @@ class PostDetailView(DetailView):
     def get_object(self, queryset=None):
         """Функция проверяет право доступа к неопубликованному посту."""
         obj = super().get_object(queryset=queryset)
-        if not obj.is_published and obj.author != self.request.user: 
+        if not obj.is_published and obj.author != self.request.user:
             obj = get_object_or_404(
                 Post,
                 pk=self.kwargs.get('post_id'),
@@ -85,11 +96,8 @@ class PostsListView(ListView):
 
     def get_queryset(self):
         """Функция вывода постов."""
-        return super().get_queryset().filter(
-            is_published=True,
-            category__is_published=True,
-            pub_date__date__lte=timezone.localtime(timezone.now())
-        )
+        return get_optimized_posts(filter_published=True,
+                                   annotate_comments=True)
 
 
 class PostUpdateView(OnlyAuthorMixin, UpdateView):
@@ -99,16 +107,6 @@ class PostUpdateView(OnlyAuthorMixin, UpdateView):
     form_class = PostForm
     template_name = 'blog/post_form.html'
     pk_url_kwarg = 'post_id'
-
-    def dispatch(self, request, *args, **kwargs):
-        """Функция перехвата исключений."""
-        try:
-            return super().dispatch(request, *args, **kwargs)
-        except PermissionDenied:
-            post = self.get_object()
-            return redirect(reverse(
-                'blog:post_detail', kwargs={'post_id': post.id}
-            ))
 
     def get_success_url(self):
         """Функция для перенаправления на страницу поста."""
@@ -124,26 +122,45 @@ class PostDeleteView(OnlyAuthorMixin, DeleteView):
     success_url = reverse_lazy('blog:index')
     pk_url_kwarg = 'post_id'
 
+    def get_context_data(self, **kwargs):
+        """Метод добавления контекста."""
+        context = super().get_context_data(**kwargs)
+        context['form'] = PostForm(instance=self.object)
+        return context
 
-class ProfileDetailView(DetailView):
-    """Профиль пользователя."""
+
+class ProfileDetailView(ListView):
+    """Профиль пользователя с пагинацией постов."""
 
     model = User
-    context_object_name = 'profile'
+    context_object_name = 'posts'
     slug_field = 'username'
     slug_url_kwarg = 'username'
+    template_name = 'auth/user_detail.html'  # Укажите путь к вашему шаблону
+    paginate_by = settings.LIMIT_POSTS
+
+    def get_username(self):
+        """Метод возвращает объект User."""
+        return get_object_or_404(User, username=self.kwargs.get('username'))
+
+    def get_queryset(self):
+        """Получаем QuerySet для списка постов"""
+        user = self.get_username()
+        flag_filter_published = True
+        if self.request.user == user:
+            flag_filter_published = False
+        return get_optimized_posts(
+            manager=Post.objects.select_related(
+                'author',
+                'category',
+                'location'
+            ).filter(author=user),
+            filter_published=flag_filter_published
+        )
 
     def get_context_data(self, **kwargs):
-        """Функция получения всех постов пользователя."""
         context = super().get_context_data(**kwargs)
-        user = self.get_object()
-        post_list = Post.objects.filter(
-            author=user
-        )  # Получаем список всех постов пользователя
-        paginator = Paginator(post_list, settings.LIMIT_POSTS)
-        page_number = self.request.GET.get('page')
-        page_obj = paginator.get_page(page_number)
-        context['page_obj'] = page_obj
+        context['profile'] = self.get_username()
         return context
 
 
@@ -165,66 +182,29 @@ class ProfileUpdateView(OnlyUserMixin, UpdateView):
 
     def get_success_url(self):
         """Функция для перенаправления на страницу пользователя."""
+        send_mail(
+            subject='Обновление данных',
+            message='Вы обновили данные в своём профиле',
+            from_email='admin@mail.ru',
+            recipient_list=['to@example.ru'],
+            fail_silently=True
+        )
         return reverse_lazy(
             'blog:profile',
             kwargs={'username': self.object.username}
         )
 
-    send_mail(
-        subject='Обновление данных',
-        message='Вы обновили данные в своём профиле',
-        from_email='admin@mail.ru',
-        recipient_list=['to@example.ru'],
-        fail_silently=True
-    )
 
-
-class CommentUpdateView(OnlyAuthorMixin, UpdateView):
+class CommentUpdateView(CommentSuccessUrl, OnlyAuthorMixin, UpdateView):
     """Класс редактирования комментария."""
 
-    model = Comment
     form_class = CommentForm
-    success_url = reverse_lazy('post_detail')
-
-    def get_object(self, queryset=None):
-        """Функция берет данные из URL."""
-        return get_object_or_404(
-            Comment,
-            id=self.kwargs.get('comment_id'),
-            post_id=self.kwargs.get('post_id')
-        )
-
-    def form_valid(self, form):
-        """Функция перенаправляет на страницу поста,
-        к которому относится комментарий
-        """
-        self.object = form.save()
-        return redirect('blog:post_detail', post_id=self.object.post_id)
 
 
-class CommentDeleteView(OnlyAuthorMixin, DeleteView):
+class CommentDeleteView(CommentSuccessUrl, OnlyAuthorMixin, DeleteView):
     """Класс удаления комментария."""
 
-    model = Comment
     template_name = 'blog/comment_form.html'
-
-    def get_success_url(self):
-        """Функция получаем ID поста, к которому принадлежит комментарий."""
-        return reverse_lazy(
-            'blog:post_detail',
-            kwargs={'post_id': self.object.post_id}
-        )
-
-    def get_object(self, queryset=None):
-        """Метод получения объекта, чтобы использовать comment_id"""
-        comment_id = self.kwargs.get('comment_id')
-        return get_object_or_404(Comment, id=comment_id)
-
-    def delete(self, request, *args, **kwargs):
-        """Метод удаления комментария."""
-        self.object = self.get_object()
-        self.object.delete()  # Удаляем комментарий
-        return redirect(self.get_success_url())
 
 
 class CategoryListView(ListView):
@@ -235,18 +215,22 @@ class CategoryListView(ListView):
     context_object_name = 'posts'
     paginate_by = settings.LIMIT_POSTS
 
-    def get_queryset(self):
-        """Метод возвращает список элементов для представления."""
-        self.category = get_object_or_404(
-            Category, slug=self.kwargs['category_slug'],
+    def get_category(self):
+        """Метод возвращает объект Category."""
+        return get_object_or_404(
+            Category,
+            slug=self.kwargs['category_slug'],
             is_published=True
         )
+
+    def get_queryset(self):
+        """Метод возвращает список элементов для представления."""
         return Post.objects.select_related(
             'author',
             'category',
             'location',
         ).filter(
-            category=self.category,
+            category=self.get_category(),
             is_published=True,
             pub_date__date__lte=timezone.localtime(timezone.now())
         )
@@ -256,14 +240,8 @@ class CategoryListView(ListView):
         который будет передан в шаблон.
         """
         context = super().get_context_data(**kwargs)
-        context['category'] = self.category
+        context['category'] = self.get_category()
         return context
-
-
-@login_required
-def simple_view(request):
-    """Функция проверки доступа"""
-    return HttpResponse('Страница для залогиненных пользователей!')
 
 
 @login_required

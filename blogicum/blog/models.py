@@ -1,13 +1,10 @@
 """Классы для работы с SQLite."""
 
+from django.conf import settings
 from django.db import models
 from django.contrib.auth import get_user_model
 from django.urls import reverse
 from django.utils import timezone
-
-
-MAX_LENGTH_TITLE: int = 256
-PRE_TEXT_LEN: int = 15
 
 
 User = get_user_model()
@@ -34,7 +31,7 @@ class Category(PublishedModel):
     """Класс описывающий таблицу Category в БД."""
 
     title = models.CharField(verbose_name='Заголовок',
-                             max_length=MAX_LENGTH_TITLE)
+                             max_length=settings.MAX_LENGTH_TITLE)
     description = models.TextField(verbose_name='Описание')
     slug = models.SlugField(
         verbose_name='Идентификатор',
@@ -54,14 +51,14 @@ class Category(PublishedModel):
         """Метод используется для получения
         «читаемого» представления объекта.
         """
-        return self.title[:PRE_TEXT_LEN]
+        return self.title[:settings.PRE_TEXT_LEN]
 
 
 class Location(PublishedModel):
     """Класс описывающий таблицу Location в БД."""
 
     name = models.CharField(verbose_name='Название места',
-                            max_length=MAX_LENGTH_TITLE)
+                            max_length=settings.MAX_LENGTH_TITLE)
 
     class Meta:
         verbose_name = 'местоположение'
@@ -71,14 +68,14 @@ class Location(PublishedModel):
         """Метод используется для получения
         «читаемого» представления объекта.
         """
-        return self.name[:PRE_TEXT_LEN]
+        return self.name[:settings.PRE_TEXT_LEN]
 
 
 class Post(PublishedModel):
     """Класс описывающий таблицу Post в БД."""
 
     title = models.CharField(verbose_name='Заголовок',
-                             max_length=MAX_LENGTH_TITLE)
+                             max_length=settings.MAX_LENGTH_TITLE)
     text = models.TextField(verbose_name='Текст')
     pub_date = models.DateTimeField(
         default=timezone.now,
@@ -122,7 +119,7 @@ class Post(PublishedModel):
         """Метод используется для получения
         «читаемого» представления объекта.
         """
-        return self.title[:PRE_TEXT_LEN]
+        return self.title[:settings.PRE_TEXT_LEN]
 
     def get_absolute_url(self):
         return reverse('blog:post_detail', kwargs={"pk": self.pk})
@@ -153,7 +150,7 @@ class Comment(models.Model):
         """Метод используется для получения
         «читаемого» представления объекта.
         """
-        return self.text[:PRE_TEXT_LEN]
+        return self.text[:settings.PRE_TEXT_LEN]
 
     class Meta:
         verbose_name = 'комментарий'
