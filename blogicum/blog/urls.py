@@ -56,7 +56,7 @@ profile_urls = [
 
 urlpatterns = [
     path('', views.PostsListView.as_view(), name='index'),
-    path('post', include(post_urls)),
+    path('posts/', include(post_urls)),
     path('profile/', include(profile_urls)),
     path(
         'category/<slug:category_slug>/',

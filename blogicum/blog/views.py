@@ -24,7 +24,7 @@ from django.views.generic import (
 from blog.models import Category, Post, User
 from .forms import CommentForm, PostForm, UserForm
 from .utils import (
-    CommentSuccessUrl,
+    CommentMixin,
     OnlyAuthorMixin,
     OnlyUserMixin,
     get_optimized_posts,
@@ -96,8 +96,7 @@ class PostsListView(ListView):
 
     def get_queryset(self):
         """Функция вывода постов."""
-        return get_optimized_posts(filter_published=True,
-                                   annotate_comments=True)
+        return get_optimized_posts(annotate_comments=True)
 
 
 class PostUpdateView(OnlyAuthorMixin, UpdateView):
@@ -155,7 +154,8 @@ class ProfileDetailView(ListView):
                 'category',
                 'location'
             ).filter(author=user),
-            filter_published=flag_filter_published
+            filter_published=flag_filter_published,
+            annotate_comments=True
         )
 
     def get_context_data(self, **kwargs):
@@ -195,13 +195,13 @@ class ProfileUpdateView(OnlyUserMixin, UpdateView):
         )
 
 
-class CommentUpdateView(CommentSuccessUrl, OnlyAuthorMixin, UpdateView):
+class CommentUpdateView(CommentMixin, OnlyAuthorMixin, UpdateView):
     """Класс редактирования комментария."""
 
     form_class = CommentForm
 
 
-class CommentDeleteView(CommentSuccessUrl, OnlyAuthorMixin, DeleteView):
+class CommentDeleteView(CommentMixin, OnlyAuthorMixin, DeleteView):
     """Класс удаления комментария."""
 
     template_name = 'blog/comment_form.html'

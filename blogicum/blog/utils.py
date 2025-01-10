@@ -31,7 +31,7 @@ class OnlyUserMixin(UserPassesTestMixin):
         return object == self.request.user
 
 
-class CommentSuccessUrl():
+class CommentMixin():
     """Класс-миксин комментариев."""
 
     model = Comment
@@ -70,7 +70,8 @@ def get_optimized_posts(manager=Post.objects, filter_published=True,
 
     if annotate_comments:
         queryset = queryset.annotate(
-            comments_count=Count('comment')
+            comments_count=Count('comments')
         )
+    queryset = queryset.order_by('-pub_date')
 
     return queryset
