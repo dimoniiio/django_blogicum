@@ -44,7 +44,7 @@ class CommentMixin():
             'blog:post_detail',
             kwargs={'post_id': self.object.post_id}
         )
-    
+
     def get_object(self, queryset=None):
         """Функция берет данные из URL."""
         return get_object_or_404(

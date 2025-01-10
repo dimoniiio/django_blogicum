@@ -63,5 +63,4 @@ urlpatterns = [
         views.CategoryListView.as_view(),
         name='category_posts'
     ),
-    
 ]
