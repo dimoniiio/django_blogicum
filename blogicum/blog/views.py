@@ -10,7 +10,7 @@ from django.contrib.auth.forms import UserCreationForm
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.mail import send_mail
 from django.shortcuts import get_object_or_404, redirect
-from django.urls import reverse_lazy
+from django.urls import reverse_lazy, reverse
 from django.utils import timezone
 from django.views.generic import (
     CreateView,
@@ -108,8 +108,8 @@ class PostUpdateView(OnlyAuthorMixin, UpdateView):
 
     def get_success_url(self):
         """Функция для перенаправления на страницу поста."""
-        return reverse_lazy('blog:post_detail',
-                            kwargs={'post_id': self.object.id})
+        return reverse('blog:post_detail',
+                       kwargs={'post_id': self.object.id})
 
 
 class PostDeleteView(OnlyAuthorMixin, DeleteView):
@@ -146,7 +146,7 @@ class ProfileDetailView(ListView):
         user = self.get_username()
         flag_filter_published = self.request.user != user
         return get_optimized_posts(
-            user.posts.filter(author=user),
+            user.posts,
             filter_published=flag_filter_published,
             annotate_comments=True
         )
@@ -212,11 +212,7 @@ class CategoryListView(ListView):
     def get_queryset(self):
         """Метод возвращает список элементов для представления."""
         return get_optimized_posts(
-            self.get_category().posts.filter(
-                category=self.get_category(),
-                is_published=True,
-                pub_date__date__lte=timezone.localtime(timezone.now())
-            ),
+            self.get_category().posts,
             annotate_comments=True
         )
 
