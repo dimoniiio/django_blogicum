@@ -4,15 +4,14 @@ venws.post_detail -- страница с одним постом.
 venws.category_posts -- страница категории.
 """
 
-from django.core.mail import send_mail
-from django.shortcuts import get_object_or_404, redirect
-from django.urls import reverse_lazy
-from django.utils import timezone
-
 from django.conf import settings
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.forms import UserCreationForm
 from django.contrib.auth.mixins import LoginRequiredMixin
+from django.core.mail import send_mail
+from django.shortcuts import get_object_or_404, redirect
+from django.urls import reverse_lazy
+from django.utils import timezone
 from django.views.generic import (
     CreateView,
     DeleteView,
@@ -69,12 +68,12 @@ class PostDetailView(DetailView):
 
     def get_object(self, queryset=None):
         """Функция проверяет право доступа к неопубликованному посту."""
-        obj = super().get_object(queryset=queryset)
-        if not obj.is_published and obj.author != self.request.user:
+        queryset = get_optimized_posts(filter_published=False)
+        obj = get_object_or_404(queryset, pk=self.kwargs.get('post_id'))
+        if obj.author != self.request.user:
             obj = get_object_or_404(
-                Post,
+                get_optimized_posts(),
                 pk=self.kwargs.get('post_id'),
-                author=self.request.user
             )
         return obj
 
@@ -145,15 +144,9 @@ class ProfileDetailView(ListView):
     def get_queryset(self):
         """Получаем QuerySet для списка постов"""
         user = self.get_username()
-        flag_filter_published = True
-        if self.request.user == user:
-            flag_filter_published = False
+        flag_filter_published = self.request.user != user
         return get_optimized_posts(
-            manager=Post.objects.select_related(
-                'author',
-                'category',
-                'location'
-            ).filter(author=user),
+            user.posts.filter(author=user),
             filter_published=flag_filter_published,
             annotate_comments=True
         )
@@ -162,13 +155,6 @@ class ProfileDetailView(ListView):
         context = super().get_context_data(**kwargs)
         context['profile'] = self.get_username()
         return context
-
-
-class ProfileCreateView(LoginRequiredMixin, CreateView):
-    """Регистрация нового пользователя."""
-
-    model = User
-    form_class = UserForm
 
 
 class ProfileUpdateView(OnlyUserMixin, UpdateView):
@@ -225,14 +211,13 @@ class CategoryListView(ListView):
 
     def get_queryset(self):
         """Метод возвращает список элементов для представления."""
-        return Post.objects.select_related(
-            'author',
-            'category',
-            'location',
-        ).filter(
-            category=self.get_category(),
-            is_published=True,
-            pub_date__date__lte=timezone.localtime(timezone.now())
+        return get_optimized_posts(
+            self.get_category().posts.filter(
+                category=self.get_category(),
+                is_published=True,
+                pub_date__date__lte=timezone.localtime(timezone.now())
+            ),
+            annotate_comments=True
         )
 
     def get_context_data(self, **kwargs):

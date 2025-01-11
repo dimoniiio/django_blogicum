@@ -17,9 +17,9 @@ class OnlyAuthorMixin(UserPassesTestMixin):
 
     def handle_no_permission(self):
         """Перенаправляет на страницу поста при отсутствии прав."""
-        obj = self.get_object()
+        post_id = self.kwargs.get('post_id')
         return redirect(
-            reverse('blog:post_detail', kwargs={'post_id': obj.id})
+            reverse('blog:post_detail', kwargs={'post_id': post_id})
         )
 
 
@@ -31,7 +31,7 @@ class OnlyUserMixin(UserPassesTestMixin):
         return object == self.request.user
 
 
-class CommentMixin():
+class CommentMixin:
     """Класс-миксин комментариев."""
 
     model = Comment
@@ -72,6 +72,5 @@ def get_optimized_posts(manager=Post.objects, filter_published=True,
         queryset = queryset.annotate(
             comments_count=Count('comments')
         )
-    queryset = queryset.order_by('-pub_date')
 
-    return queryset
+    return queryset.order_by('-pub_date')
